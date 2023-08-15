@@ -1,0 +1,25 @@
+module elec_mag(
+
+input[1:0] state,
+output emo;
+
+)
+
+reg em ;
+parameter pick = 0, drop = 1;
+
+	always @(*) begin
+		case(state)
+			pick : begin
+					 em <= 1'b1 ;
+			       end
+			
+			drop : begin
+				    em <= 1'b0 ;
+				    end
+	   end case
+	
+	assign emo = em;
+	
+end
+

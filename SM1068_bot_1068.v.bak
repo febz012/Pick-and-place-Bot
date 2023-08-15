@@ -1,0 +1,278 @@
+module SM1068_bot_1068(
+	
+	input clk_50_master,
+   input color_out,
+   input  dout,
+	output adc_cs_n,
+	output din,
+	output adc_sck,
+	output s0,
+	output s1,
+	output s2,
+	output s3,
+	output redl,
+	output greenl,
+	output bluel,
+	output [2:0] direction,
+	output [4:0] ledn,
+	output tx,
+	output [1:0]state,
+	output [3:0] hv,
+	output clr_led,
+	output [1:0] buf_sel,
+	output  [2:0] led_st
+   );
+	
+parameter front=0,right=2,left=3,stop=1;
+
+reg clr_ledb;
+
+reg [1:0] sim_b=0;
+
+wire det;
+reg[3:0] i=0;
+reg[3:0] j=0;
+reg[1:0] mdir=stop;
+
+reg [8:0] map=9'b010100100; 
+ 
+reg [4:0] ledb=0;
+reg [7:0] tx_buf=0;
+reg u_en=0;
+
+reg n_f=0;
+
+reg trig=0;
+
+
+SM1068_color_sensor col(.out(color_out),.s0(s0),.s1(s1),.s2(s2),.s3(s3),.redl(redl),.greenl(greenl),.bluel(bluel),.clk_color_50(clk_50_master),.det(det),.clr_led(clr_led),.led_st(led_st));
+
+SM1068_adc_control adc(.clk_50(clk_50_master),.dout(dout),.adc_cs_n(adc_cs_n),.din(din),.adc_sck(adc_sck),.direction(direction));
+
+SM1068_uart urt(.clk_50M(clk_50_master),.data_in(tx_buf),.tx(tx),.en_tri(u_en),.buf_sel(buf_sel),.p_num(sim_b));
+
+SM1068_motor mot(.hv(hv),.state(state),.clk_50(clk_50_master));
+
+reg [20:0] en_counter=0;
+reg en_rst=0;
+reg [20:0] b_counter=0;
+reg b_rst=0;
+
+reg mot_en;
+
+
+reg[1:0] buf_selb;
+
+reg init_f=0;
+
+reg [29:0] init_counter=0;
+reg b_trig=0;
+
+always @(posedge clk_50_master) begin
+		init_counter<=(init_counter<250000000)?init_counter+1:250000100;
+		init_f<=(init_counter<230000000)?0:1;
+		
+		
+		if(init_counter>250000000) begin
+		 mot_en<=1;
+		 init_f<=0;
+		 end
+		else begin
+		mot_en<=0;
+		end
+		
+end
+
+always @(clk_50_master) begin
+trig<=det;
+end 
+
+always@(*) begin
+		b_rst<=(b_counter<120)?0:1;
+		end
+
+always@(posedge trig or  posedge b_rst) begin
+		if(b_rst) begin
+				b_trig<=0;
+				end
+		else begin
+				b_trig<=1;
+				end
+end
+
+always@(posedge clk_50_master or posedge b_rst) begin
+		if(b_rst) begin
+			b_counter<=0;
+			end
+		else begin
+			  if(b_trig) begin
+					b_counter<=b_counter+1;
+					end
+      end
+end
+
+
+always@(posedge trig) begin
+	if(det==1)begin
+	buf_selb<=2;
+		end
+	else begin
+		buf_selb<=3;
+	end
+end
+
+always@(*) begin
+		en_rst<=(en_counter<120)?0:1;
+		end
+
+always@(posedge b_trig or  posedge en_rst) begin
+		if(en_rst) begin
+				u_en<=0;
+				end
+		else begin
+				u_en<=1;
+				end
+end
+
+always@(posedge clk_50_master or posedge en_rst) begin
+		if(en_rst) begin
+			en_counter<=0;
+			end
+		else begin
+			  if(u_en) begin
+					en_counter<=en_counter+1;
+					end
+      end
+end
+
+always @(posedge n_f) begin
+   if(init_f) begin
+	  i<=0;
+	end
+    
+	else if(i==8) begin
+		i<=1;
+		end
+	else begin
+		i<=i+1;
+	end
+	if(i==7) begin
+     j<=j+1;
+     end
+end
+
+always@(posedge clk_50_master) begin
+
+	if(mot_en==1) begin
+	
+		if(direction==5) begin 
+				clr_ledb<=0;
+		end
+		else if(i==8 & direction==0 & n_f==0) begin 
+				clr_ledb<=0;
+		end
+		
+		else if(i==8 & direction==0) begin 
+				clr_ledb<=1;
+		end
+		else begin
+			clr_ledb<=0;
+		end
+	end
+	
+	else begin
+	clr_ledb<=1;
+	end
+
+end
+
+
+
+always@(posedge clk_50_master) begin
+				
+		
+		case(direction)
+				3'b000:begin
+				       n_f<=1;
+						    if(j==2) begin
+								  mdir<=stop;
+								  end
+						    else if(n_f==1 & map[i]==1) begin
+						        mdir<=right;
+							     end
+						    else begin 
+						       mdir<=front;
+						       
+						      end
+						    
+						 end
+				
+				3'b110:begin
+							if(n_f==0) begin
+				      	mdir<=right;
+							end
+											
+						 end
+				3'b011:begin
+								if(n_f==0) begin
+				      		mdir<=left;
+								end
+								
+						 end
+				3'b101:begin
+				            if(mot_en==1) begin
+						      n_f<=0;
+								mdir<=front;
+						       end
+								 else begin
+								 mdir<=stop;
+								 			 
+								 end
+						 end
+			   3'b001:begin
+								if(n_f==0) begin
+						 
+								mdir<=left;
+								end
+						
+						 end
+						 
+			   3'b100:begin
+						     if(n_f==0) begin
+						
+								mdir<=right;
+								end
+						
+						  end
+			
+				3'b111: begin 
+							mdir<=mdir;
+							end
+		endcase
+end
+
+always @(posedge det) begin
+  
+   if(led_st[1]) begin
+		tx_buf<=78;
+		sim_b<=2;		
+		end
+	else if(led_st[0]) begin
+		tx_buf<=87;
+		sim_b<=3;
+		end
+	else if(led_st[2]) begin
+		tx_buf<=80;
+		sim_b<=1;
+		end
+	else begin
+		tx_buf<=0;
+		end
+end
+
+assign buf_sel=buf_selb;
+assign ledn=ledb;
+assign state=mdir;
+assign clr_led=clr_ledb;
+
+endmodule 

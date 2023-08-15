@@ -1,0 +1,144 @@
+// SM : Task 2 B : UART
+/*
+Instructions
+-------------------
+Students are not allowed to make any changes in the Module declaration.
+This file is used to design UART Transmitter.
+
+Recommended Quartus Version : 19.1
+The submitted project file must be 19.1 compatible as the evaluation will be done on Quartus Prime Lite 19.1.
+
+Warning: The error due to compatibility will not be entertained.
+-------------------
+*/
+
+//UART Transmitter design
+//Input   : clk_50M : 50 MHz clock
+//Output  : tx : UART transmit output
+
+//////////////////DO NOT MAKE ANY CHANGES IN MODULE//////////////////
+module uart(
+	input clk_50M,	//50 MHz clock
+	output tx,	//UART transmit output
+	input [7:0] data_in
+);
+////////////////////////WRITE YOUR CODE FROM HERE////////////////////
+parameter IDLE=0,START=1,DATA=2,STOP=3;
+
+parameter clocks_per_bit=434;
+parameter data_size_in_bytes=4;
+
+reg[13:0] clk_count=0;
+reg[2:0] state=IDLE;
+
+//reg [7:0] data=0;
+
+/*
+initial begin
+tx_buf[0]=83;
+tx_buf[1]=77;
+tx_buf[2]=54;
+tx_buf[3]=56;
+end
+*/
+reg[3:0] i=0;
+
+reg tx_flag=0;
+reg tx_line=1;
+
+reg [3:0]buf_cnt=0;
+
+reg fla=0;
+reg[35:0] fla_cnt=0;
+
+always@(posedge clk_50M) begin
+fla_cnt<=(fla_cnt>100000)?100010:fla_cnt+1;
+fla<=(fla_cnt>100000)?1:0;
+end
+/*
+always @(posedge clk_50M) begin
+	if(tx_flag==1) begin
+		data<=tx_buf[buf_cnt];
+		buf_cnt<=buf_cnt+1;
+		end
+	else begin
+		data<=data;
+		end
+	
+	
+	
+	end
+	*/
+
+always@(posedge clk_50M) begin
+
+    case (state)
+			IDLE:begin
+				  tx_line<=1;
+				  if(clk_count<clocks_per_bit-1) begin
+					  		clk_count<=clk_count+1;
+							state<=IDLE;
+						  	end
+				  else if(fla) begin
+				         state<=START;
+							clk_count<=0;
+							end
+				  else begin
+							state<=IDLE;
+					 		clk_count<=0;
+					   	end
+				  end
+			START:begin
+					tx_line<=0;
+					if(clk_count<clocks_per_bit-1) begin
+							clk_count<=clk_count+1;
+							state<=START;
+							end
+					else begin
+							state<=DATA;
+							clk_count<=0;
+						   end
+					end
+			DATA:begin
+					tx_line<=data_in[i];
+				  if(clk_count<clocks_per_bit-1) begin
+							clk_count<=clk_count+1;
+							state<=DATA;
+							end
+				  else begin 
+						clk_count<=0;
+						if(i<7) begin
+						   i<=i+1;
+							state<=DATA;
+							
+							end
+						else begin
+							i<=0;
+							//data_count<=data_count+1;
+							state<=STOP;
+							//tx_flag=1;
+								end
+						end
+					
+				  end
+			STOP:begin
+				  tx_line<=1;
+				  //tx_flag=0;
+				  if(clk_count<clocks_per_bit-1) begin
+					  		clk_count<=clk_count+1;
+							state<=STOP;
+						  	end
+				  else begin
+							
+							state<=IDLE;
+							clk_count<=0;
+							end
+				  end
+	 endcase
+
+end
+
+assign tx=tx_line;
+////////////////////////YOUR CODE ENDS HERE//////////////////////////
+endmodule
+///////////////////////////////MODULE ENDS///////////////////////////
